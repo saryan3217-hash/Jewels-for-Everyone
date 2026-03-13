@@ -1,33 +1,24 @@
 /* ═══════════════════════════════════════════════════
-   KANAK SHRI JEWELLERS — Shared Scripts v3.0
-   Fixes:
-   - Back-button black page (bfcache compatible)
-   - Mobile cursor disabled
-   - Page transition uses class-based approach
-   - Active nav link highlight fixed for index.html
+   KANAK SHRI JEWELLERS — Shared Scripts v2.0
    ═══════════════════════════════════════════════════ */
 
 (function () {
   'use strict';
 
-  /* ── CUSTOM CURSOR (desktop pointer only) ── */
+  /* ── CUSTOM CURSOR ── */
   const cursor = document.getElementById('cursor');
   const ring   = document.getElementById('cursorRing');
-  const isTouch = window.matchMedia('(pointer: coarse)').matches;
-
-  if (cursor && ring && !isTouch) {
+  if (cursor && ring) {
     let mx = 0, my = 0, rx = 0, ry = 0;
     document.addEventListener('mousemove', e => { mx = e.clientX; my = e.clientY; });
     function animateCursor() {
-      cursor.style.left = mx + 'px';
-      cursor.style.top  = my + 'px';
-      rx += (mx - rx) * 0.12;
-      ry += (my - ry) * 0.12;
-      ring.style.left = rx + 'px';
-      ring.style.top  = ry + 'px';
+      cursor.style.left = mx + 'px'; cursor.style.top = my + 'px';
+      rx += (mx - rx) * 0.12; ry += (my - ry) * 0.12;
+      ring.style.left = rx + 'px'; ring.style.top = ry + 'px';
       requestAnimationFrame(animateCursor);
     }
     animateCursor();
+    // Hover expand effect
     document.querySelectorAll('a, button, .product-card').forEach(el => {
       el.addEventListener('mouseenter', () => { cursor.classList.add('hovered'); ring.classList.add('hovered'); });
       el.addEventListener('mouseleave', () => { cursor.classList.remove('hovered'); ring.classList.remove('hovered'); });
@@ -37,48 +28,43 @@
   /* ── STICKY NAV ── */
   const nav = document.getElementById('mainNav');
   if (nav) {
-    const onScroll = () => nav.classList.toggle('scrolled', window.scrollY > 60);
-    window.addEventListener('scroll', onScroll, { passive: true });
-    onScroll(); // run on load in case page is already scrolled
+    window.addEventListener('scroll', () => {
+      nav.classList.toggle('scrolled', window.scrollY > 60);
+    }, { passive: true });
   }
 
   /* ── HAMBURGER MENU ── */
-  const hamburger  = document.getElementById('hamburger');
+  const hamburger = document.getElementById('hamburger');
   const mobileMenu = document.getElementById('mobileMenu');
   if (hamburger && mobileMenu) {
-    function closeMenu() {
-      hamburger.classList.remove('open');
-      mobileMenu.classList.remove('open');
-      document.body.style.overflow = '';
-    }
     hamburger.addEventListener('click', () => {
       const open = hamburger.classList.toggle('open');
       mobileMenu.classList.toggle('open', open);
+      mobileMenu.style.display = open ? 'flex' : 'none';
       document.body.style.overflow = open ? 'hidden' : '';
     });
-    mobileMenu.querySelectorAll('a').forEach(a => a.addEventListener('click', closeMenu));
-    // Close on Escape
-    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMenu(); });
+    mobileMenu.querySelectorAll('a').forEach(a => {
+      a.addEventListener('click', () => {
+        hamburger.classList.remove('open');
+        mobileMenu.classList.remove('open');
+        mobileMenu.style.display = 'none';
+        document.body.style.overflow = '';
+      });
+    });
   }
 
   /* ── SCROLL REVEAL ── */
   const reveals = document.querySelectorAll('.reveal');
-  if (reveals.length && 'IntersectionObserver' in window) {
+  if (reveals.length) {
     const io = new IntersectionObserver((entries) => {
       entries.forEach(e => {
-        if (e.isIntersecting) {
-          e.target.classList.add('visible');
-          io.unobserve(e.target);
-        }
+        if (e.isIntersecting) { e.target.classList.add('visible'); io.unobserve(e.target); }
       });
-    }, { threshold: 0.08, rootMargin: '0px 0px -40px 0px' });
+    }, { threshold: 0.1, rootMargin: '0px 0px -60px 0px' });
     reveals.forEach(el => io.observe(el));
-  } else {
-    // Fallback: make all visible immediately
-    reveals.forEach(el => el.classList.add('visible'));
   }
 
-  /* ── PRODUCT FILTER ── */
+  /* ── PRODUCT FILTER (collection pages) ── */
   const filterBtns = document.querySelectorAll('.filter-btn');
   if (filterBtns.length) {
     filterBtns.forEach(btn => {
@@ -97,54 +83,46 @@
     });
   }
 
-  /* ── PAGE TRANSITIONS
-     FIX: Use bfcache-friendly approach.
-     - Do NOT set opacity on 'load' — let CSS handle the initial state.
-     - Use pageshow event to clear the overlay (handles back/forward cache).
-     - Only apply transition overlay on deliberate internal link clicks.
-  ── */
+  /* ── LAZY IMAGE OBSERVER (extra fallback for older browsers) ── */
+  if ('IntersectionObserver' in window) {
+    const imgs = document.querySelectorAll('img[loading="lazy"]');
+    const imgIO = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          const img = e.target;
+          if (img.dataset.src) { img.src = img.dataset.src; delete img.dataset.src; }
+          imgIO.unobserve(img);
+        }
+      });
+    });
+    imgs.forEach(img => imgIO.observe(img));
+  }
+
+  /* ── PAGE TRANSITIONS (smooth exit) ── */
   const overlay = document.getElementById('page-transition');
   if (overlay) {
-    // Immediately hide overlay on any page show (including bfcache restore)
-    window.addEventListener('pageshow', function (e) {
-      overlay.classList.remove('active');
+    // Fade in on load
+    window.addEventListener('load', () => {
+      overlay.style.opacity = '0';
     });
-
-    // On internal link click, show overlay then navigate
+    // Fade out on link click (internal pages only)
     document.querySelectorAll('a[href]').forEach(link => {
       const href = link.getAttribute('href');
-      if (
-        href &&
-        !href.startsWith('#') &&
-        !href.startsWith('http') &&
-        !href.startsWith('//') &&
-        !href.startsWith('tel') &&
-        !href.startsWith('mailto') &&
-        !href.startsWith('javascript')
-      ) {
+      if (href && !href.startsWith('#') && !href.startsWith('http') && !href.startsWith('tel') && !href.startsWith('mailto')) {
         link.addEventListener('click', e => {
           e.preventDefault();
-          overlay.classList.add('active');
-          setTimeout(() => { window.location.href = href; }, 360);
+          overlay.style.opacity = '1';
+          overlay.style.pointerEvents = 'all';
+          setTimeout(() => { window.location.href = href; }, 350);
         });
       }
     });
   }
 
   /* ── ACTIVE NAV LINK HIGHLIGHT ── */
-  const page = window.location.pathname.split('/').pop() || 'index.html';
+  const page = window.location.pathname.split('/').pop();
   document.querySelectorAll('.nav-links a, .mobile-menu a').forEach(a => {
-    const linkHref = a.getAttribute('href');
-    if (!linkHref) return;
-    const linkPage = linkHref.split('/').pop().split('#')[0];
-    // Match exact page, or treat index.html as home
-    if (
-      linkPage === page ||
-      (page === '' && linkPage === 'index.html') ||
-      (page === 'index.html' && linkPage === 'index.html')
-    ) {
-      a.classList.add('active');
-    }
+    if (a.getAttribute('href') === page) a.classList.add('active');
   });
 
 })();
